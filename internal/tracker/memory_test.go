@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
 )
 
 func TestMemoryTracker_RecordBid(t *testing.T) {
 	tracker := NewMemoryTracker()
-	ctx := context.Background()
+	backgroundContext := context.Background()
 
-	bid1, err := tracker.RecordBid(ctx, "item1", "user1", 100.0)
+	bid1, err := tracker.RecordBid(backgroundContext, "item1", "user1", 100.0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -21,12 +22,12 @@ func TestMemoryTracker_RecordBid(t *testing.T) {
 		t.Errorf("expected bid amount 100.0, got %v", bid1.Amount)
 	}
 
-	_, err = tracker.RecordBid(ctx, "item1", "user2", 50.0)
+	_, err = tracker.RecordBid(backgroundContext, "item1", "user2", 50.0)
 	if err != domain.ErrBidTooLow {
 		t.Errorf("expected ErrBidTooLow, got %v", err)
 	}
 
-	bid3, err := tracker.RecordBid(ctx, "item1", "user3", 150.0)
+	bid3, err := tracker.RecordBid(backgroundContext, "item1", "user3", 150.0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -34,15 +35,15 @@ func TestMemoryTracker_RecordBid(t *testing.T) {
 		t.Errorf("expected bid amount 150.0, got %v", bid3.Amount)
 	}
 
-	winning, err := tracker.GetWinningBid(ctx, "item1")
+	winningBid, err := tracker.GetWinningBid(backgroundContext, "item1")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if winning.ID != bid3.ID {
-		t.Errorf("expected winning bid ID %s, got %s", bid3.ID, winning.ID)
+	if winningBid.ID != bid3.ID {
+		t.Errorf("expected winning bid ID %s, got %s", bid3.ID, winningBid.ID)
 	}
 
-	allBids, err := tracker.GetAllBids(ctx, "item1")
+	allBids, err := tracker.GetAllBids(backgroundContext, "item1")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -53,54 +54,54 @@ func TestMemoryTracker_RecordBid(t *testing.T) {
 
 func TestMemoryTracker_Concurrency(t *testing.T) {
 	tracker := NewMemoryTracker()
-	ctx := context.Background()
-	var wg sync.WaitGroup
+	backgroundContext := context.Background()
+	var waitGroup sync.WaitGroup
 
-	numBids := 1000
+	numberOfBids := 1000
 	item1 := "item_concurrent"
 
-	for i := 1; i <= numBids; i++ {
-		wg.Add(1)
+	for index := 1; index <= numberOfBids; index++ {
+		waitGroup.Add(1)
 		go func(amount float64) {
-			defer wg.Done()
+			defer waitGroup.Done()
 			user := fmt.Sprintf("user_%d", int(amount))
-			_, _ = tracker.RecordBid(ctx, item1, user, amount)
-		}(float64(i))
+			_, _ = tracker.RecordBid(backgroundContext, item1, user, amount)
+		}(float64(index))
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
-	winning, err := tracker.GetWinningBid(ctx, item1)
+	winningBid, err := tracker.GetWinningBid(backgroundContext, item1)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if winning.Amount != float64(numBids) {
-		t.Errorf("expected winning bid amount %d, got %v", numBids, winning.Amount)
+	if winningBid.Amount != float64(numberOfBids) {
+		t.Errorf("expected winning bid amount %d, got %v", numberOfBids, winningBid.Amount)
 	}
 }
 
 func BenchmarkMemoryTracker_RecordBid(b *testing.B) {
 	tracker := NewMemoryTracker()
-	ctx := context.Background()
+	backgroundContext := context.Background()
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
+	b.RunParallel(func(parallelBenchmark *testing.PB) {
 		amount := 1.0
-		for pb.Next() {
+		for parallelBenchmark.Next() {
 			amount += 1.0
 			itemID := fmt.Sprintf("item_%d", int(amount)%100)
 			userID := fmt.Sprintf("user_%d", int(amount)%1000)
-			_, _ = tracker.RecordBid(ctx, itemID, userID, amount)
+			_, _ = tracker.RecordBid(backgroundContext, itemID, userID, amount)
 		}
 	})
 }
 
 func TestMemoryTracker_EdgeCases(t *testing.T) {
 	tracker := NewMemoryTracker()
-	ctx := context.Background()
+	backgroundContext := context.Background()
 
-	bids, err := tracker.GetAllBids(ctx, "nonexist")
+	bids, err := tracker.GetAllBids(backgroundContext, "nonexist")
 	if err != nil {
 		t.Fatalf("expected no error")
 	}
@@ -108,7 +109,7 @@ func TestMemoryTracker_EdgeCases(t *testing.T) {
 		t.Errorf("expected empty bids")
 	}
 
-	items, err := tracker.GetUserItems(ctx, "nonexist")
+	items, err := tracker.GetUserItems(backgroundContext, "nonexist")
 	if err != nil {
 		t.Fatalf("expected no error")
 	}
@@ -116,15 +117,48 @@ func TestMemoryTracker_EdgeCases(t *testing.T) {
 		t.Errorf("expected empty items")
 	}
 
-	_, _ = tracker.RecordBid(ctx, "item1", "user1", 100)
-	items, err = tracker.GetUserItems(ctx, "user1")
+	_, _ = tracker.RecordBid(backgroundContext, "item1", "user1", 100)
+	items, err = tracker.GetUserItems(backgroundContext, "user1")
 	if err != nil || len(items) != 1 || items[0] != "item1" {
 		t.Errorf("expected 1 item 'item1'")
 	}
 
-	tracker.items.Store("empty_item", &itemData{})
-	_, err = tracker.GetWinningBid(ctx, "empty_item")
+	tracker.items.Store("empty_item", newItemData("empty_item", &tracker.items))
+	_, err = tracker.GetWinningBid(backgroundContext, "empty_item")
 	if err != domain.ErrNotFound {
 		t.Errorf("expected ErrNotFound for item with no bids")
+	}
+}
+
+func TestMemoryTracker_IdleTimeout(t *testing.T) {
+	// Temporarily override the timeout for this test
+	originalTimeout := idleTimeout
+	idleTimeout = 10 * time.Millisecond
+	defer func() { idleTimeout = originalTimeout }()
+
+	tracker := NewMemoryTracker()
+	backgroundContext := context.Background()
+
+	// Create an item
+	_, _ = tracker.RecordBid(backgroundContext, "timeout_item", "user1", 100)
+
+	// Wait longer than the timeout
+	time.Sleep(50 * time.Millisecond)
+
+	// Item should be gone from the map
+	_, ok := tracker.items.Load("timeout_item")
+	if ok {
+		t.Errorf("expected item to be deleted from sync.Map")
+	}
+
+	// Another bid should recreate it transparently
+	_, err := tracker.RecordBid(backgroundContext, "timeout_item", "user2", 200)
+	if err != nil {
+		t.Errorf("expected no error recreating item, got %v", err)
+	}
+
+	winningBid, err := tracker.GetWinningBid(backgroundContext, "timeout_item")
+	if err != nil || winningBid.Amount != 200 {
+		t.Errorf("expected winning bid to be 200, got %v", winningBid)
 	}
 }

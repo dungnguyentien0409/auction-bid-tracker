@@ -52,7 +52,7 @@ func (h *Handler) HandleRecordBid(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(bid)
+	_ = json.NewEncoder(w).Encode(bid)
 }
 
 func (h *Handler) HandleGetWinningBid(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (h *Handler) HandleGetWinningBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(bid)
+	_ = json.NewEncoder(w).Encode(bid)
 }
 
 func (h *Handler) HandleGetAllBids(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func (h *Handler) HandleGetAllBids(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(bids)
+	_ = json.NewEncoder(w).Encode(bids)
 }
 
 func (h *Handler) HandleGetUserItems(w http.ResponseWriter, r *http.Request) {
@@ -107,5 +107,5 @@ func (h *Handler) HandleGetUserItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(items)
+	_ = json.NewEncoder(w).Encode(items)
 }

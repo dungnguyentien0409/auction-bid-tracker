@@ -116,7 +116,7 @@ func TestMemoryTracker_EdgeCases(t *testing.T) {
 		t.Errorf("expected empty items")
 	}
 
-	tracker.RecordBid(ctx, "item1", "user1", 100)
+	_, _ = tracker.RecordBid(ctx, "item1", "user1", 100)
 	items, err = tracker.GetUserItems(ctx, "user1")
 	if err != nil || len(items) != 1 || items[0] != "item1" {
 		t.Errorf("expected 1 item 'item1'")

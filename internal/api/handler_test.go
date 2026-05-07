@@ -36,7 +36,7 @@ func TestHandler_RecordBid(t *testing.T) {
 	}
 
 	var bid domain.Bid
-	json.NewDecoder(w.Body).Decode(&bid)
+	_ = json.NewDecoder(w.Body).Decode(&bid)
 	if bid.Amount != 100.0 {
 		t.Errorf("expected amount 100.0, got %v", bid.Amount)
 	}
@@ -84,7 +84,7 @@ func TestHandler_GetWinningBid(t *testing.T) {
 	}
 
 	var bid domain.Bid
-	json.NewDecoder(wGet.Body).Decode(&bid)
+	_ = json.NewDecoder(wGet.Body).Decode(&bid)
 	if bid.Amount != 100.0 {
 		t.Errorf("expected winning bid amount 100.0, got %v", bid.Amount)
 	}

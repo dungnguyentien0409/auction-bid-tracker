@@ -4,7 +4,7 @@ APP_NAME := auction-bid-tracker
 MAIN_PATH := cmd/server/main.go
 BIN_DIR := bin
 
-all: lint test build
+all: lint unit build
 
 mod:
 	@echo "==> Tidy dependencies..."
@@ -18,9 +18,13 @@ lint:
 	@echo "==> Linting code..."
 	@golangci-lint run ./...
 
-test:
-	@echo "==> Running tests..."
+unit:
+	@echo "==> Running unit tests..."
 	@go test -v ./...
+
+integration:
+	@echo "==> Running integration tests..."
+	@go test -v -tags=integration ./tests/...
 
 coverage:
 	@echo "==> Running tests with coverage..."

@@ -30,7 +30,9 @@ jobs:
           go-version-file: 'go.mod'
       - name: Install dependencies
         run: go mod download
-      - name: Run tests
-        run: go test -v -race -cover ./...
+      - name: Run unit tests
+        run: make unit
+      - name: Run integration tests
+        run: make integration
       - name: Build
         run: go build -v ./cmd/server/...

@@ -35,4 +35,4 @@ jobs:
       - name: Run integration tests
         run: make integration
       - name: Build
-        run: go build -v ./cmd/server/...
+        run: make build

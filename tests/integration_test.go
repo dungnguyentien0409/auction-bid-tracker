@@ -12,16 +12,18 @@ import (
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
-	"github.com/dungnguyentien0409/auction-bid-tracker/internal/tracker"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
 )
 
-func setupServer() (*httptest.Server, *tracker.MemoryTracker) {
-	memoryTracker := tracker.NewMemoryTracker()
-	handler := api.NewHandler(memoryTracker)
+func setupServer() (*httptest.Server, *service.BidService) {
+	repo := repository.NewMemoryRepository()
+	bidService := service.NewBidService(repo)
+	handler := api.NewHandler(bidService)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	server := httptest.NewServer(mux)
-	return server, memoryTracker
+	return server, bidService
 }
 
 func TestIntegration_AuctionJourney(t *testing.T) {
@@ -162,11 +164,11 @@ func TestIntegration_Endpoints(t *testing.T) {
 
 	t.Run("POST_Bid_TooLow", func(t *testing.T) {
 		t.Parallel()
-		server, memTracker := setupServer()
+		server, bidService := setupServer()
 		defer server.Close()
 
-		// Pre-seed a bid directly into tracker
-		_, _ = memTracker.RecordBid(context.Background(), "item_2", "user_1", 200.0)
+		// Pre-seed a bid directly into service
+		_, _ = bidService.RecordBid(context.Background(), "item_2", "user_1", 200.0)
 
 		reqBody := map[string]interface{}{
 			"item_id": "item_2",

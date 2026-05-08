@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
-	"github.com/dungnguyentien0409/auction-bid-tracker/internal/tracker"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
 )
 
 func TestHandler_RecordBid(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 
 	mux := http.NewServeMux()
@@ -59,7 +60,7 @@ func TestHandler_RecordBid(t *testing.T) {
 }
 
 func TestHandler_GetWinningBid(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 
 	mux := http.NewServeMux()
@@ -99,7 +100,7 @@ func TestHandler_GetWinningBid(t *testing.T) {
 }
 
 func TestHandler_RecordBid_Invalid(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 
 	req := httptest.NewRequest(http.MethodPost, "/bids", bytes.NewReader([]byte("{invalid")))
@@ -120,7 +121,7 @@ func TestHandler_RecordBid_Invalid(t *testing.T) {
 }
 
 func TestHandler_GetAllBids(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
@@ -134,7 +135,7 @@ func TestHandler_GetAllBids(t *testing.T) {
 }
 
 func TestHandler_GetUserItems(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
@@ -148,7 +149,7 @@ func TestHandler_GetUserItems(t *testing.T) {
 }
 
 func TestHandler_EmptyPathValues(t *testing.T) {
-	memTracker := tracker.NewMemoryTracker()
+	memTracker := service.NewBidService(repository.NewMemoryRepository())
 	handler := NewHandler(memTracker)
 
 	req1 := httptest.NewRequest(http.MethodGet, "/", nil)

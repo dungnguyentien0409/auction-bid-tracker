@@ -5,12 +5,14 @@ import (
 	"net/http"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api"
-	"github.com/dungnguyentien0409/auction-bid-tracker/internal/tracker"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
 )
 
 func main() {
-	memTracker := tracker.NewMemoryTracker()
-	handler := api.NewHandler(memTracker)
+	repo := repository.NewMemoryRepository()
+	bidService := service.NewBidService(repo)
+	handler := api.NewHandler(bidService)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)

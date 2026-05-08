@@ -7,81 +7,107 @@ import (
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
 )
 
-type MemoryRepository struct {
+type itemRecord struct {
+	mu   sync.RWMutex
+	bids []domain.Bid
+}
+
+type userRecord struct {
 	mu    sync.RWMutex
-	items map[string][]domain.Bid
-	users map[string]map[string]struct{}
+	items map[string]struct{}
+}
+
+type MemoryRepository struct {
+	items sync.Map // maps string -> *itemRecord
+	users sync.Map // maps string -> *userRecord
 }
 
 func NewMemoryRepository() *MemoryRepository {
-	return &MemoryRepository{
-		items: make(map[string][]domain.Bid),
-		users: make(map[string]map[string]struct{}),
-	}
+	return &MemoryRepository{}
 }
 
 func (r *MemoryRepository) SaveBid(ctx context.Context, bid *domain.Bid) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// 1. Save bid with item-level lock
+	itemVal, _ := r.items.LoadOrStore(bid.ItemID, &itemRecord{})
+	item := itemVal.(*itemRecord)
 
-	bids := r.items[bid.ItemID]
-
-	if len(bids) > 0 {
-		highestBid := bids[len(bids)-1]
+	item.mu.Lock()
+	if len(item.bids) > 0 {
+		highestBid := item.bids[len(item.bids)-1]
 		if bid.Amount <= highestBid.Amount {
+			item.mu.Unlock()
 			return domain.ErrBidTooLow
 		}
 	}
+	item.bids = append(item.bids, *bid)
+	item.mu.Unlock()
 
-	r.items[bid.ItemID] = append(bids, *bid)
+	// 2. Track user item with user-level lock
+	userVal, _ := r.users.LoadOrStore(bid.UserID, &userRecord{
+		items: make(map[string]struct{}),
+	})
+	user := userVal.(*userRecord)
 
-	if r.users[bid.UserID] == nil {
-		r.users[bid.UserID] = make(map[string]struct{})
-	}
-	r.users[bid.UserID][bid.ItemID] = struct{}{}
+	user.mu.Lock()
+	user.items[bid.ItemID] = struct{}{}
+	user.mu.Unlock()
 
 	return nil
 }
 
 func (r *MemoryRepository) GetWinningBid(ctx context.Context, itemID string) (*domain.Bid, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	itemVal, ok := r.items.Load(itemID)
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	item := itemVal.(*itemRecord)
 
-	bids := r.items[itemID]
-	if len(bids) == 0 {
+	item.mu.RLock()
+	defer item.mu.RUnlock()
+
+	if len(item.bids) == 0 {
 		return nil, domain.ErrNotFound
 	}
 
-	winningBid := bids[len(bids)-1]
+	winningBid := item.bids[len(item.bids)-1]
 	return &winningBid, nil
 }
 
 func (r *MemoryRepository) GetAllBids(ctx context.Context, itemID string) ([]domain.Bid, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	itemVal, ok := r.items.Load(itemID)
+	if !ok {
+		return []domain.Bid{}, nil
+	}
+	item := itemVal.(*itemRecord)
 
-	bids := r.items[itemID]
-	if len(bids) == 0 {
+	item.mu.RLock()
+	defer item.mu.RUnlock()
+
+	if len(item.bids) == 0 {
 		return []domain.Bid{}, nil
 	}
 
-	// Make a copy to avoid race conditions when the caller reads the slice
-	res := make([]domain.Bid, len(bids))
-	copy(res, bids)
+	res := make([]domain.Bid, len(item.bids))
+	copy(res, item.bids)
 	return res, nil
 }
 
 func (r *MemoryRepository) GetUserItems(ctx context.Context, userID string) ([]string, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	userVal, ok := r.users.Load(userID)
+	if !ok {
+		return []string{}, nil
+	}
+	user := userVal.(*userRecord)
 
-	userItems := r.users[userID]
-	if len(userItems) == 0 {
+	user.mu.RLock()
+	defer user.mu.RUnlock()
+
+	if len(user.items) == 0 {
 		return []string{}, nil
 	}
 
-	res := make([]string, 0, len(userItems))
-	for itemID := range userItems {
+	res := make([]string, 0, len(user.items))
+	for itemID := range user.items {
 		res = append(res, itemID)
 	}
 	return res, nil

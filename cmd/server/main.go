@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,11 +12,22 @@ import (
 	"time"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/config"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
 )
 
 func main() {
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "development"
+	}
+
+	cfg, err := config.Load(env)
+	if err != nil {
+		log.Fatalf("failed to load config for env %s: %v", env, err)
+	}
+
 	repo := repository.NewMemoryRepository()
 	bidService := service.NewBidService(repo)
 	handler := api.NewHandler(bidService)
@@ -23,8 +35,9 @@ func main() {
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    addr,
 		Handler: mux,
 	}
 
@@ -34,7 +47,7 @@ func main() {
 
 	// Run the server in a separate goroutine so it doesn't block
 	go func() {
-		log.Println("server started on :8080")
+		log.Printf("server started on %s (env: %s)\n", addr, env)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("failed to start server: %v", err)
 		}

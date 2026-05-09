@@ -37,7 +37,7 @@ build:
 
 run: build
 	@echo "==> Running $(APP_NAME)..."
-	@./$(BIN_DIR)/$(APP_NAME)
+	@APP_ENV=development ./$(BIN_DIR)/$(APP_NAME)
 
 clean:
 	@echo "==> Cleaning..."

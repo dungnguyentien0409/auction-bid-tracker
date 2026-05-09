@@ -7,7 +7,10 @@ import (
 )
 
 type ServerConfig struct {
-	Port int `json:"port"`
+	Port         int `json:"port"`
+	ReadTimeout  int `json:"read_timeout_seconds"`
+	WriteTimeout int `json:"write_timeout_seconds"`
+	IdleTimeout  int `json:"idle_timeout_seconds"`
 }
 
 type Config struct {
@@ -18,7 +21,7 @@ type Config struct {
 func Load(env string) (*Config, error) {
 	// e.g. "config/config.dev.json"
 	filePath := fmt.Sprintf("config/config.%s.json", env)
-	
+
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)

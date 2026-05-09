@@ -1,5 +1,8 @@
 {
   "server": {
-    "port": 8080
+    "port": 8080,
+    "read_timeout_seconds": 10,
+    "write_timeout_seconds": 10,
+    "idle_timeout_seconds": 120
   }
 }

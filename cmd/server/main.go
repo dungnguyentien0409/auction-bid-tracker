@@ -37,8 +37,11 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
 	// Channel to listen for interrupt or terminate signals from the OS

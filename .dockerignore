@@ -1,0 +1,6 @@
+bin/
+vendor/
+.git/
+server.log
+coverage.out
+.DS_Store

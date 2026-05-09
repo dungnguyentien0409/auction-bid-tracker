@@ -75,19 +75,18 @@ The project maintains **100% unit test coverage** for all internal logic.
 - Go 1.22+
 
 ### Instructions
-1. **Build the project**:
-   ```bash
-   make build
-   ```
-2. **Run the server**:
+1. **Run the server**:
    ```bash
    make run
    ```
-3. **Run tests**:
+2. **Run tests**:
    ```bash
    make test
    make coverage
    ```
+3. **Docker Support**:
+   - Run via Docker: `make docker-run` (auto-builds image)
+
 4. **Performance verification**:
    - `make benchmark` (Core logic speed)
    - `make load-test` (API throughput)

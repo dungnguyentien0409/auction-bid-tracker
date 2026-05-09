@@ -73,3 +73,11 @@ contention-test: build
 	go run cmd/loadtest/main.go -workers=200 -duration=10s -hot; \
 	echo "==> Stopping server..."; \
 	kill $$SERVER_PID || true
+
+docker-build:
+	@echo "==> Building Docker image..."
+	@docker build -t auction-tracker .
+
+docker-run: docker-build
+	@echo "==> Running Docker container on port 8080..."
+	@docker run -p 8080:8080 auction-tracker

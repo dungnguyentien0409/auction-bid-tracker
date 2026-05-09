@@ -60,3 +60,16 @@ load-test: build
 	go run cmd/loadtest/main.go -workers=200 -duration=10s; \
 	echo "==> Stopping server..."; \
 	kill $$SERVER_PID || true
+
+contention-test: build
+	@echo "==> Cleaning up port 8080..."
+	@lsof -ti:8080 | xargs kill -9 || true
+	@sleep 1
+	@echo "==> Starting fresh server for Contention Test..."
+	@APP_ENV=development ./$(BIN_DIR)/$(APP_NAME) & \
+	SERVER_PID=$$!; \
+	sleep 2; \
+	echo "==> Running Contention load test (All traffic on 1 item)..."; \
+	go run cmd/loadtest/main.go -workers=200 -duration=10s -hot; \
+	echo "==> Stopping server..."; \
+	kill $$SERVER_PID || true

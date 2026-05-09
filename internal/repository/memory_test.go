@@ -181,4 +181,46 @@ func TestMemoryRepository_EdgeCases(t *testing.T) {
 		}
 	})
 }
+func BenchmarkMemoryRepository_SaveBid(b *testing.B) {
+	repo := NewMemoryRepository()
+	ctx := context.Background()
+	bid := &domain.Bid{ItemID: "item1", UserID: "user1", Amount: 1.0}
 
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bid.Amount = float64(i + 1)
+		_ = repo.SaveBid(ctx, bid)
+	}
+}
+
+func BenchmarkMemoryRepository_SaveBidParallel(b *testing.B) {
+	repo := NewMemoryRepository()
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			itemID := "item-" + string(rune(i%10)) // Distribute across 10 items
+			bid := &domain.Bid{ItemID: itemID, UserID: "user", Amount: float64(i + 1)}
+			_ = repo.SaveBid(ctx, bid)
+			i++
+		}
+	})
+}
+
+func BenchmarkMemoryRepository_SaveBidHotItem(b *testing.B) {
+	repo := NewMemoryRepository()
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			// All workers hitting the SAME item
+			bid := &domain.Bid{ItemID: "hot-item", UserID: "user", Amount: float64(i + 1)}
+			_ = repo.SaveBid(ctx, bid)
+			i++
+		}
+	})
+}

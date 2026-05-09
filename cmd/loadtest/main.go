@@ -17,6 +17,7 @@ var (
 	urlFlag      = flag.String("url", "http://localhost:8080", "Target server URL")
 	workersFlag  = flag.Int("workers", 200, "Number of concurrent workers")
 	durationFlag = flag.Duration("duration", 10*time.Second, "Duration of the load test")
+	hotItemFlag  = flag.Bool("hot", false, "Simulate a hot auction (all bids on 1 item)")
 )
 
 type metrics struct {
@@ -33,7 +34,8 @@ func main() {
 	fmt.Printf("==> Starting Load Test\n")
 	fmt.Printf("URL:      %s\n", *urlFlag)
 	fmt.Printf("Workers:  %d\n", *workersFlag)
-	fmt.Printf("Duration: %v\n\n", *durationFlag)
+	fmt.Printf("Duration: %v\n", *durationFlag)
+	fmt.Printf("Hot Item: %v\n\n", *hotItemFlag)
 
 	var stats metrics
 	var wg sync.WaitGroup
@@ -60,7 +62,10 @@ func main() {
 			r := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)))
 
 			for time.Now().Before(deadline) {
-				itemID := fmt.Sprintf("item_%d", r.Intn(100))
+				itemID := "item_1"
+				if !*hotItemFlag {
+					itemID = fmt.Sprintf("item_%d", r.Intn(100))
+				}
 				userID := fmt.Sprintf("user_%d", r.Intn(1000))
 				amount := float64(r.Intn(1000)) + 1.0
 

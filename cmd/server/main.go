@@ -46,9 +46,8 @@ func main() {
 	mux := http.NewServeMux()
 	apiHandler.RegisterRoutes(mux)
 
-	// Apply Middlewares (Chain: Recovery -> Logger)
+	// Apply Middlewares (Chain: Recovery)
 	var finalHandler http.Handler = mux
-	finalHandler = middleware.Logger(finalHandler)
 	finalHandler = middleware.Recovery(finalHandler)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

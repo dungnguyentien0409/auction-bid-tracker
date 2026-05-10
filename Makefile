@@ -80,17 +80,19 @@ build: validate-env ## Build the server binary
 	@echo "==> Building $(APP_NAME)..."
 	@go build -o $(BIN_DIR)/$(APP_NAME) $(MAIN_PATH)
 
-run: build ## Run the standalone server locally (Use SEED=true to pre-populate)
+run: ## Run the standalone server locally (Use SEED=true to pre-populate)
+	@$(MAKE) build APP_ENV=development REPO_TYPE=$(if $(REPO_TYPE),$(REPO_TYPE),memory)
+
 	@if [ "$(SEED)" = "true" ]; then \
 		echo "==> Starting server in background for seeding..."; \
-		APP_ENV=development REPO_TYPE=memory ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
+		APP_ENV=development REPO_TYPE=$(if $(REPO_TYPE),$(REPO_TYPE),memory) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
 		SERVER_PID=$$!; \
 		$(MAKE) wait-server; \
 		$(MAKE) seed; \
 		echo "==> Seeding complete. Server is running (PID: $$SERVER_PID)."; \
 		wait $$SERVER_PID; \
 	else \
-		APP_ENV=development REPO_TYPE=memory ./$(BIN_DIR)/$(APP_NAME); \
+		APP_ENV=development REPO_TYPE=$(if $(REPO_TYPE),$(REPO_TYPE),memory) ./$(BIN_DIR)/$(APP_NAME); \
 	fi
 
 wait-server:

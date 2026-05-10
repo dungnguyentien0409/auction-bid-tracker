@@ -73,14 +73,18 @@ Our testing suite is automated to run against **ALL** backends with zero configu
 
 | Mode | Backend | Command | Note |
 | :--- | :--- | :--- | :--- |
-| **Standalone** | In-Memory | `make run` | Fastest startup (Default) |
-| **Standalone + Seed** | In-Memory | **`make run SEED=true`** | **Best for immediate review** |
-| **Distributed** | Redis | `make docker-up` | Real-world scale-out mode |
-| **Distributed + Seed** | Redis | **`make docker-up SEED=true`** | Full cluster with sample data |
-
+| **Standalone** | In-Memory | `make run` | Fast local development without external infrastructure |
+| **Standalone + Seed** | In-Memory | **`make run SEED=true`** | Pre-populated local demo mode |
+| **Distributed** | Redis | `make docker-up` | Multi-container Redis-backed environment |
+| **Distributed + Seed** | Redis | **`make docker-up SEED=true`** | Distributed environment with sample auction data |
 
 > [!NOTE]
-> **Defaults**: `make run` uses `REPO_TYPE=memory` and `APP_ENV=development` by default. For distributed testing, `make docker-up` automatically uses `REPO_TYPE=redis`.
+> Runtime behavior is intentionally separated:
+>
+> - `make run` is designed exclusively for the in-memory backend.
+> - `make docker-up` is designed for the Redis-backed distributed environment.
+>
+> This separation keeps the standalone developer workflow lightweight while reserving Redis for integration and distributed execution scenarios.
 
 
 ### Full Verification Suite

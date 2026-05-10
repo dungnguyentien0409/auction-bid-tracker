@@ -1,7 +1,7 @@
 # ⚡️ Auction Bid Tracker
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
-[![CI Status](https://github.com/dungnguyentien0409/auction-bid-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/dungnguyentien0409/auction-bid-tracker/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/dungnguyentien0409/auction-bid-tracker/ci.yml?style=for-the-badge&label=CI)](https://github.com/dungnguyentien0409/auction-bid-tracker/actions)
 [![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen?style=for-the-badge)](https://github.com/dungnguyentien0409/auction-bid-tracker)
 
 A high-performance bidding engine written in Go, engineered for **ultra-low latency** and **distributed consistency**. This system demonstrates a hybrid architecture capable of running as a standalone high-speed node or a horizontally scalable distributed cluster.

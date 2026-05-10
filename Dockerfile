@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -13,8 +13,12 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Build-time arguments (validation only; runtime values injected via docker-compose)
+ARG APP_ENV=production
+ARG REPO_TYPE=redis
+
 # Build the application
-RUN make build
+RUN APP_ENV=${APP_ENV} REPO_TYPE=${REPO_TYPE} make build
 
 # Stage 2: Runtime
 FROM alpine:latest
@@ -22,7 +26,7 @@ FROM alpine:latest
 WORKDIR /root/
 
 # Copy binary and config
-COPY --from=builder /app/bin/server ./server
+COPY --from=builder /app/bin/auction-bid-tracker ./server
 COPY --from=builder /app/config ./config
 
 # Expose port

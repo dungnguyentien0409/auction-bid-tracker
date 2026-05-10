@@ -44,16 +44,9 @@ lint: ## Run golangci-lint
 	@echo "==> Linting code..."
 	@golangci-lint run ./...
 
-unit: ## Run unit tests for all backends
-	@echo "==> Running unit tests (All Backends)..."
-	@$(MAKE) do-unit REPO_TYPE=memory APP_ENV=development
-	@$(MAKE) do-unit REPO_TYPE=redis APP_ENV=development
-
-do-unit: validate-env
-	@echo "----------------------------------------------------------"
-	@echo "    BACKEND: $(REPO_TYPE)"
-	@echo "----------------------------------------------------------"
-	@REPO_TYPE=$(REPO_TYPE) APP_ENV=$(APP_ENV) go test -v ./...
+unit: ## Run unit tests
+	@echo "==> Running unit tests..."
+	@APP_ENV=development go test -v ./...
 
 integration: ## Run integration tests for all backends
 	@echo "==> Running integration tests (All Backends)..."
@@ -61,11 +54,22 @@ integration: ## Run integration tests for all backends
 	@$(MAKE) do-integration REPO_TYPE=redis APP_ENV=development
 
 do-integration: validate-env
-	@echo "----------------------------------------------------------"
-	@echo "    ENV:     $(APP_ENV)"
-	@echo "    BACKEND: $(REPO_TYPE)"
-	@echo "----------------------------------------------------------"
-	@APP_ENV=$(APP_ENV) REPO_TYPE=$(REPO_TYPE) go test -v ./tests/... ./internal/... -tags=integration
+	@printf "\033[1;35m\n============================================================\n  🔗 INTEGRATION TEST — ENV: $(APP_ENV) | BACKEND: $(REPO_TYPE)\n============================================================\033[0m\n"
+	@REDIS_STARTED=0; \
+	if [ "$(REPO_TYPE)" = "redis" ] && ! nc -z localhost 6379 > /dev/null 2>&1; then \
+		echo "    ==> Starting ephemeral Redis for integration tests..."; \
+		docker rm -f redis-integration > /dev/null 2>&1 || true; \
+		docker run -d --name redis-integration -p 6379:6379 redis:alpine > /dev/null; \
+		REDIS_STARTED=1; \
+		until nc -z localhost 6379 > /dev/null 2>&1; do sleep 1; done; \
+	fi; \
+	APP_ENV=$(APP_ENV) REPO_TYPE=$(REPO_TYPE) go test -v ./tests/... ./internal/... -tags=integration; \
+	TEST_EXIT=$$?; \
+	if [ "$$REDIS_STARTED" = "1" ]; then \
+		echo "    ==> Stopping ephemeral Redis..."; \
+		docker rm -f redis-integration > /dev/null 2>&1 || true; \
+	fi; \
+	exit $$TEST_EXIT
 
 coverage:
 	@echo "==> Running tests with coverage..."
@@ -76,13 +80,48 @@ build: validate-env ## Build the server binary
 	@echo "==> Building $(APP_NAME)..."
 	@go build -o $(BIN_DIR)/$(APP_NAME) $(MAIN_PATH)
 
-run: build ## Run the standalone server locally
-	@echo "==> Running auction-bid-tracker (ENV=$(APP_ENV), REPO=$(REPO_TYPE))..."
-	@APP_ENV=$(APP_ENV) REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME)
+run: build ## Run the standalone server locally (Use SEED=true to pre-populate)
+	@if [ "$(SEED)" = "true" ]; then \
+		echo "==> Starting server in background for seeding..."; \
+		APP_ENV=development REPO_TYPE=memory ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
+		SERVER_PID=$$!; \
+		$(MAKE) wait-server; \
+		$(MAKE) seed; \
+		echo "==> Seeding complete. Server is running (PID: $$SERVER_PID)."; \
+		wait $$SERVER_PID; \
+	else \
+		APP_ENV=development REPO_TYPE=memory ./$(BIN_DIR)/$(APP_NAME); \
+	fi
 
-docker-up: ## Start the distributed cluster (App + Redis)
-	@echo "==> Starting distributed system with Docker Compose..."
-	@docker-compose up --build
+wait-server:
+	@echo "==> Waiting for server to be ready (Timeout: 20s)..."
+	@for i in $$(seq 1 20); do \
+		if curl -s http://localhost:8080/health > /dev/null; then \
+			echo "==> Server is UP!"; \
+			exit 0; \
+		fi; \
+		echo "    Attempt $$i/20: Server not ready, retrying in 1s..."; \
+		sleep 1; \
+	done; \
+	echo "==> ERROR: Server failed to start"; \
+	exit 1
+
+seed: ## Seed sample data via public API (Internal use)
+	@echo "==> SEEDING: Injecting mock data via API..."
+	@curl -s -X POST http://localhost:8080/bids -H "Content-Type: application/json" -d '{"item_id": "macbook-m3", "user_id": "user-1", "amount": 2000.0}' > /dev/null
+	@curl -s -X POST http://localhost:8080/bids -H "Content-Type: application/json" -d '{"item_id": "macbook-m3", "user_id": "user-2", "amount": 2100.0}' > /dev/null
+	@curl -s -X POST http://localhost:8080/bids -H "Content-Type: application/json" -d '{"item_id": "macbook-m3", "user_id": "user-3", "amount": 2500.0}' > /dev/null
+	@curl -s -X POST http://localhost:8080/bids -H "Content-Type: application/json" -d '{"item_id": "leica-m6", "user_id": "user-1", "amount": 3000.0}' > /dev/null
+	@echo "==> SEEDING: Mock data injected successfully."
+
+docker-up: ## Start the distributed system (Use SEED=true to pre-populate)
+	@echo "==> Starting distributed system..."
+	@docker-compose up -d --build
+	@if [ "$(SEED)" = "true" ]; then \
+		$(MAKE) wait-server; \
+		$(MAKE) seed; \
+	fi
+	@echo "==> Cluster is UP. Run 'docker-compose logs -f' to follow logs."
 
 docker-down: ## Stop the distributed system
 	@echo "==> Stopping distributed system..."
@@ -100,11 +139,10 @@ benchmark:
 load-test: build
 	@echo "==> Cleaning up port 8080..."
 	@lsof -ti:8080 | xargs kill -9 || true
-	@sleep 1
 	@echo "==> Starting fresh server for load test..."
-	@APP_ENV=stress ./$(BIN_DIR)/$(APP_NAME) & \
+	@APP_ENV=stress REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
 	SERVER_PID=$$!; \
-	sleep 2; \
+	$(MAKE) wait-server; \
 	echo "==> Running load test..."; \
 	go run cmd/loadtest/main.go -workers=$(WORKERS) -duration=$(DURATION); \
 	echo "==> Stopping server..."; \
@@ -113,68 +151,77 @@ load-test: build
 contention-test: build
 	@echo "==> SCENARIO: Hot Auction (1 Item)"
 	@echo "==> DESCRIPTION: Maximum lock contention on a single resource. Tests the extreme limits of the atomic sync path."
-	@lsof -ti:8080 | xargs kill -9 || true; sleep 1
+	@lsof -ti:8080 | xargs kill -9 || true
 	@APP_ENV=stress REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
-	SERVER_PID=$$!; sleep 2; \
+	SERVER_PID=$$!; \
+	$(MAKE) wait-server; \
 	go run cmd/loadtest/main.go -workers=$(WORKERS) -duration=$(DURATION) -hot; \
 	kill $$SERVER_PID || true
 
 test-trending: build
 	@echo "==> SCENARIO: Trending Auctions (10 Items)"
 	@echo "==> DESCRIPTION: High contention across a small set of popular items. Tests sharded lock efficiency."
-	@lsof -ti:8080 | xargs kill -9 || true; sleep 1
+	@lsof -ti:8080 | xargs kill -9 || true
 	@APP_ENV=stress REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
-	SERVER_PID=$$!; sleep 2; \
+	SERVER_PID=$$!; \
+	$(MAKE) wait-server; \
 	go run cmd/loadtest/main.go -workers=$(WORKERS) -duration=$(DURATION) -items=10; \
 	kill $$SERVER_PID || true
 
 test-distributed: build
 	@echo "==> SCENARIO: Distributed Load (1000 Items)"
 	@echo "==> DESCRIPTION: Wide distribution with low contention. Tests the system's peak throughput capacity."
-	@lsof -ti:8080 | xargs kill -9 || true; sleep 1
+	@lsof -ti:8080 | xargs kill -9 || true
 	@APP_ENV=stress REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
-	SERVER_PID=$$!; sleep 2; \
+	SERVER_PID=$$!; \
+	$(MAKE) wait-server; \
 	go run cmd/loadtest/main.go -workers=$(WORKERS) -duration=$(DURATION) -items=1000; \
 	kill $$SERVER_PID || true
 
 test-zipf: build
 	@echo "==> SCENARIO: Skewed Load (Zipfian, 1000 Items)"
 	@echo "==> DESCRIPTION: 80/20 distribution pattern. Most realistic simulation of real-world auction behavior."
-	@lsof -ti:8080 | xargs kill -9 || true; sleep 1
+	@lsof -ti:8080 | xargs kill -9 || true
 	@APP_ENV=stress REPO_TYPE=$(REPO_TYPE) ./$(BIN_DIR)/$(APP_NAME) > /dev/null 2>&1 & \
-	SERVER_PID=$$!; sleep 2; \
+	SERVER_PID=$$!; \
+	$(MAKE) wait-server; \
 	go run cmd/loadtest/main.go -workers=$(WORKERS) -duration=$(DURATION) -items=1000 -dist=zipf; \
 	kill $$SERVER_PID || true
 
 stress-matrix: ## Run the full performance matrix (APP_ENV=stress)
 	@$(MAKE) build APP_ENV=stress REPO_TYPE=$(REPO_TYPE)
-	@if [ "$(REPO_TYPE)" = "redis" ]; then \
+	@REDIS_STARTED=0; \
+	if [ "$(REPO_TYPE)" = "redis" ]; then \
 		if ! nc -z localhost 6379 > /dev/null 2>&1; then \
 			echo "==> Starting Redis container for stress test..."; \
-			docker run -d --name redis-test -p 6379:6379 redis:alpine; \
+			docker rm -f redis-stress > /dev/null 2>&1 || true; \
+			docker run -d --name redis-stress -p 6379:6379 redis:alpine; \
+			REDIS_STARTED=1; \
 			echo "==> Waiting for Redis to be ready..."; \
-			until nc -z localhost 6379; do \
-				sleep 1; \
-			done; \
+			until nc -z localhost 6379; do sleep 1; done; \
 		fi; \
+	fi; \
+	echo "=========================================================="; \
+	echo "      AUCTION BID TRACKER - PERFORMANCE MATRIX            "; \
+	echo "      ENV:     stress                                     "; \
+	echo "      BACKEND: $(REPO_TYPE)                               "; \
+	echo "=========================================================="; \
+	echo ""; \
+	$(MAKE) contention-test APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"; \
+	echo "----------------------------------------------------------"; \
+	$(MAKE) test-trending APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"; \
+	echo "----------------------------------------------------------"; \
+	$(MAKE) test-distributed APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"; \
+	echo "----------------------------------------------------------"; \
+	$(MAKE) test-zipf APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"; \
+	echo ""; \
+	echo "=========================================================="; \
+	echo "MATRIX TEST COMPLETED"; \
+	echo "=========================================================="; \
+	if [ "$$REDIS_STARTED" = "1" ]; then \
+		echo "==> Stopping temporary Redis container..."; \
+		docker rm -f redis-stress > /dev/null 2>&1 || true; \
 	fi
-	@echo "=========================================================="
-	@echo "      AUCTION BID TRACKER - PERFORMANCE MATRIX            "
-	@echo "      ENV:     stress                                     "
-	@echo "      BACKEND: $(REPO_TYPE)                               "
-	@echo "=========================================================="
-	@echo ""
-	@$(MAKE) contention-test APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"
-	@echo "----------------------------------------------------------"
-	@$(MAKE) test-trending APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"
-	@echo "----------------------------------------------------------"
-	@$(MAKE) test-distributed APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"
-	@echo "----------------------------------------------------------"
-	@$(MAKE) test-zipf APP_ENV=stress REPO_TYPE=$(REPO_TYPE) | grep -E "SCENARIO|Throughput|Latency|Time Taken|Total Requests|Successful|Failed"
-	@echo ""
-	@echo "=========================================================="
-	@echo "MATRIX TEST COMPLETED"
-	@echo "=========================================================="
 
 stress-compare: ## Run Memory vs Redis deep comparison (Default: DURATION=5s)
 	@echo "==> Starting Deep Comparative Stress Test (Memory vs Redis)..."

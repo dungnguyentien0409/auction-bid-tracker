@@ -216,3 +216,18 @@ func TestHandler_ErrorCases(t *testing.T) {
 		t.Errorf("expected 500")
 	}
 }
+
+func TestHandler_Health(t *testing.T) {
+	handler := NewHandler(nil) // Health doesn't need tracker
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleHealth(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if w.Body.String() != "OK" {
+		t.Errorf("expected 'OK', got '%s'", w.Body.String())
+	}
+}

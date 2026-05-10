@@ -16,10 +16,16 @@ func NewHandler(tracker domain.Tracker) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /health", h.HandleHealth)
 	mux.HandleFunc("POST /bids", h.HandleRecordBid)
 	mux.HandleFunc("GET /items/{id}/winning-bid", h.HandleGetWinningBid)
 	mux.HandleFunc("GET /items/{id}/bids", h.HandleGetAllBids)
 	mux.HandleFunc("GET /users/{id}/items", h.HandleGetUserItems)
+}
+
+func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("OK"))
 }
 
 type RecordBidRequest struct {

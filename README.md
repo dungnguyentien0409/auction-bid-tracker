@@ -1,6 +1,6 @@
 # ⚡️ Auction Bid Tracker
 
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
 [![CI Status](https://github.com/dungnguyentien0409/auction-bid-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/dungnguyentien0409/auction-bid-tracker/actions)
 [![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen?style=for-the-badge)](https://github.com/dungnguyentien0409/auction-bid-tracker)
 
@@ -66,17 +66,22 @@ Our testing suite is automated to run against **ALL** backends with zero configu
 ## 🛠 Getting Started
 
 ### Prerequisites
-- Go 1.22+
+- Go 1.24+
 - Docker & Docker Compose
 
-### Quick Run
-```bash
-# Run locally with Memory (Standalone)
-make run REPO_TYPE=memory APP_ENV=development
+### Quick Start
 
-# Run as Distributed Cluster (App + Redis)
-make docker-up
-```
+| Mode | Backend | Command | Note |
+| :--- | :--- | :--- | :--- |
+| **Standalone** | In-Memory | `make run` | Fastest startup (Default) |
+| **Standalone + Seed** | In-Memory | **`make run SEED=true`** | **Best for immediate review** |
+| **Distributed** | Redis | `make docker-up` | Real-world scale-out mode |
+| **Distributed + Seed** | Redis | **`make docker-up SEED=true`** | Full cluster with sample data |
+
+
+> [!NOTE]
+> **Defaults**: `make run` uses `REPO_TYPE=memory` and `APP_ENV=development` by default. For distributed testing, `make docker-up` automatically uses `REPO_TYPE=redis`.
+
 
 ### Full Verification Suite
 The system is protected by a 100% coverage suite and automated audits.
@@ -85,10 +90,44 @@ The system is protected by a 100% coverage suite and automated audits.
 | :--- | :--- |
 | `make help` | **Gateway Command** - Display all available targets and configurations |
 | **`make stress-compare`** | **Deep Performance Audit** (Memory vs Redis comparison table) |
+| `make run SEED=true` | **Run & Seed** - Launch the server and automatically populate it via API |
 | `make unit` | Run all unit tests for **BOTH** backends automatically |
 | `make integration` | Run E2E integration tests for **BOTH** backends automatically |
 | `make lint` | Run enterprise-grade static analysis |
 | `make coverage` | Generate 100% coverage report |
+
+---
+
+## 📡 API Usage Examples
+
+You can use the following `curl` commands to interact with the system:
+
+### 1. Health Check
+```bash
+curl http://localhost:8080/health
+```
+
+### 2. Record a Bid
+```bash
+curl -X POST http://localhost:8080/bids \
+  -H "Content-Type: application/json" \
+  -d '{"item_id": "macbook-m3", "user_id": "user-1", "amount": 3000.0}'
+```
+
+### 3. Get Current Winning Bid
+```bash
+curl http://localhost:8080/items/macbook-m3/winning-bid
+```
+
+### 4. Get All Bids for an Item
+```bash
+curl http://localhost:8080/items/macbook-m3/bids
+```
+
+### 5. Get All Items a User has Bid On
+```bash
+curl http://localhost:8080/users/user-1/items
+```
 
 ---
 

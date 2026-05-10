@@ -142,36 +142,34 @@ The goal was to build a system that remains observable and resilient under concu
 - Go 1.24+
 - Docker & Docker Compose
 
-### Quick Start
 
-| Mode | Backend | Command | Note |
+## 🚀 Runtime Modes
+
+| Mode | Backend | Command | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Standalone** | In-Memory | `make run` | Fast local development without external infrastructure |
-| **Standalone + Seed** | In-Memory | **`make run SEED=true`** | Pre-populated local demo mode |
-| **Distributed** | Redis | `make docker-up` | Multi-container Redis-backed environment |
-| **Distributed + Seed** | Redis | **`make docker-up SEED=true`** | Distributed environment with sample auction data |
+| **Standalone** | In-Memory | `make run` | Lightweight local development |
+| **Standalone + Seed** | In-Memory | `make run SEED=true` | Local demo environment with sample auction data |
+| **Distributed** | Redis | `make docker-up` | Redis-backed distributed environment |
+| **Distributed + Seed** | Redis | `make docker-up SEED=true` | Distributed demo environment with seeded data |
 
 > [!NOTE]
-> Runtime behavior is intentionally separated:
+> Runtime environments are intentionally separated:
 >
-> - `make run` is designed exclusively for the in-memory backend.
-> - `make docker-up` is designed for the Redis-backed distributed environment.
->
-> This separation keeps the standalone developer workflow lightweight while reserving Redis for integration and distributed execution scenarios.
+> - `make run` is optimized for lightweight standalone development.
+> - `make docker-up` is designed for Redis-backed distributed execution and integration scenarios.
 
+---
 
-### Full Verification Suite
-The system is protected by a 100% coverage suite and automated audits.
+## 🧪 Development & Verification
 
 | Command | Description |
 | :--- | :--- |
-| `make help` | **Gateway Command** - Display all available targets and configurations |
-| **`make stress-compare`** | **Deep Performance Audit** (Memory vs Redis comparison table) |
-| `make run SEED=true` | **Run & Seed** - Launch the server and automatically populate it via API |
-| `make unit` | Run all unit tests for **BOTH** backends automatically |
-| `make integration` | Run E2E integration tests for **BOTH** backends automatically |
-| `make lint` | Run enterprise-grade static analysis |
-| `make coverage` | Generate 100% coverage report |
+| `make help` | Display all available targets and configuration options |
+| `make unit` | Run unit tests across both backends |
+| `make integration` | Run end-to-end integration tests |
+| `make coverage` | Generate full coverage report |
+| `make lint` | Run static analysis and linting |
+| `make stress-compare` | Generate comparative Redis vs In-Memory performance audit |
 
 ---
 

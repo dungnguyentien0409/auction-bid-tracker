@@ -83,26 +83,49 @@ Instead of a global lock which bottlenecks the entire system, I implemented **Fi
 - Docker (Optional)
 
 ### Quick Start
-```bash
-# Run locally (auto-builds binary)
-make run
+The system requires two mandatory environment variables: `APP_ENV` and `REPO_TYPE`.
 
-# Run via Docker (multi-stage optimized image)
-make docker-run
+```bash
+# Run locally with In-Memory (Standard development)
+make run APP_ENV=development REPO_TYPE=memory
+
+# Run locally with Redis (Requires Redis on localhost:6379)
+make run APP_ENV=development REPO_TYPE=redis
+
+# Run via Docker (Always starts with REPO_TYPE=memory unless configured)
+make docker-run REPO_TYPE=memory
 ```
 
 ### Verification Suite
 | Command | Description |
 | :--- | :--- |
-| `make stress-matrix` | **Run All Scenarios** and generate a performance report |
-| `make test` | Run all unit & integration tests (100% Coverage) |
-| `make coverage` | Generate HTML report for code coverage verification |
+| `make stress-matrix REPO_TYPE=memory` | **Run All Scenarios** and generate a performance report |
+| `make docker-up` | **Start Distributed System** (App + Redis) via Docker Compose |
+| `make docker-down` | Stop and clean up all Docker resources |
+| `make test APP_ENV=development REPO_TYPE=memory` | Run all unit & integration tests (100% Coverage) |
+| `make coverage APP_ENV=development REPO_TYPE=memory` | Generate HTML report for code coverage verification |
 | `make benchmark` | Micro-benchmarks for core engine synchronization speed |
-| `make load-test` | General API stress test (Default config) |
-| `make contention-test` | **Hot Auction (1 Item)** - Tests extreme lock contention |
-| `make test-trending` | **Trending (10 Items)** - Tests high-contention on popular items |
-| `make test-distributed` | **Distributed (1000 Items)** - Tests peak throughput (low contention) |
-| `make test-zipf` | **Skewed (Zipfian, 1000 Items)** - Realistic 80/20 traffic distribution |
+| `make load-test APP_ENV=stress REPO_TYPE=memory` | General API stress test |
+| `make test-zipf APP_ENV=stress REPO_TYPE=memory` | **Skewed (Zipfian)** - Realistic 80/20 traffic distribution |
+
+---
+
+## 🌐 Horizontal Scaling (Redis)
+
+To scale the system across multiple nodes, you can switch from the `In-Memory` repository to the `Redis` repository. This ensures all nodes share the same state and use **Distributed Atomic Updates** via Lua scripts.
+
+### Run with Docker Compose (Recommended)
+This will start the Auction Server and a Redis instance automatically:
+```bash
+docker-compose up --build
+```
+
+### Manual Run with Redis
+1. Ensure Redis is running on `localhost:6379`.
+2. Start the server with `REPO_TYPE=redis`:
+```bash
+REPO_TYPE=redis make run
+```
 
 ---
 

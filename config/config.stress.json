@@ -4,5 +4,10 @@
     "read_timeout_seconds": 15,
     "write_timeout_seconds": 15,
     "idle_timeout_seconds": 60
+  },
+  "redis": {
+    "addr": "localhost:6379",
+    "password": "",
+    "db": 0
   }
 }

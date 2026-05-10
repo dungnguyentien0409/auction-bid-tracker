@@ -3,20 +3,46 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
+	"github.com/redis/go-redis/v9"
 )
 
-func setupService() *BidService {
-	repo := repository.NewMemoryRepository()
+var nextServiceRedisDB int32 = 0
+
+func setupService(tb testing.TB) *BidService {
+	var repo domain.Repository
+	repoType := os.Getenv("REPO_TYPE")
+
+	if repoType == "redis" {
+		addr := "localhost:6379"
+		dbID := atomic.AddInt32(&nextServiceRedisDB, 1) % 15
+		client := redis.NewClient(&redis.Options{Addr: addr, DB: int(dbID)})
+		if err := client.Ping(context.Background()).Err(); err != nil {
+			tb.Skip("Redis not available on localhost:6379, skipping service test")
+		}
+		repo = repository.NewRedisRepository(addr, "", int(dbID))
+		
+		// Clean up
+		_ = client.FlushDB(context.Background()).Err()
+		tb.Cleanup(func() {
+			_ = client.FlushDB(context.Background()).Err()
+			_ = client.Close()
+		})
+	} else {
+		repo = repository.NewMemoryRepository()
+	}
+
 	return NewBidService(repo)
 }
 
 func TestBidService_RecordBid(t *testing.T) {
-	service := setupService()
+	service := setupService(t)
 	backgroundContext := context.Background()
 
 	bid1, err := service.RecordBid(backgroundContext, "item1", "user1", 100.0)
@@ -58,7 +84,7 @@ func TestBidService_RecordBid(t *testing.T) {
 }
 
 func TestBidService_Concurrency(t *testing.T) {
-	service := setupService()
+	service := setupService(t)
 	backgroundContext := context.Background()
 	var waitGroup sync.WaitGroup
 
@@ -87,7 +113,7 @@ func TestBidService_Concurrency(t *testing.T) {
 }
 
 func BenchmarkBidService_RecordBid(b *testing.B) {
-	service := setupService()
+	service := setupService(b)
 	backgroundContext := context.Background()
 
 	b.ResetTimer()
@@ -103,7 +129,7 @@ func BenchmarkBidService_RecordBid(b *testing.B) {
 }
 
 func TestBidService_EdgeCases(t *testing.T) {
-	service := setupService()
+	service := setupService(t)
 	backgroundContext := context.Background()
 
 	bids, err := service.GetAllBids(backgroundContext, "nonexist")

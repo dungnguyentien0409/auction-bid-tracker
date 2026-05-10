@@ -8,16 +8,44 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
+	"github.com/redis/go-redis/v9"
 )
 
-func setupServer() (*httptest.Server, *service.BidService) {
-	repo := repository.NewMemoryRepository()
+var nextRedisDB int32 = 0
+
+func setupServer(t *testing.T) (*httptest.Server, *service.BidService) {
+	var repo domain.Repository
+	repoType := os.Getenv("REPO_TYPE")
+
+	if repoType == "redis" {
+		addr := "localhost:6379"
+		// Assign a unique DB for each test to ensure isolation (Redis has 16 DBs by default)
+		dbID := atomic.AddInt32(&nextRedisDB, 1) % 15
+		
+		client := redis.NewClient(&redis.Options{Addr: addr, DB: int(dbID)})
+		if err := client.Ping(context.Background()).Err(); err != nil {
+			t.Skip("Redis not available on localhost:6379, skipping integration test")
+		}
+		repo = repository.NewRedisRepository(addr, "", int(dbID))
+		
+		// Clean up only THIS specific DB
+		_ = client.FlushDB(context.Background()).Err()
+		t.Cleanup(func() {
+			_ = client.FlushDB(context.Background()).Err()
+			_ = client.Close()
+		})
+	} else {
+		repo = repository.NewMemoryRepository()
+	}
+
 	bidService := service.NewBidService(repo)
 	handler := api.NewHandler(bidService)
 	mux := http.NewServeMux()
@@ -27,7 +55,7 @@ func setupServer() (*httptest.Server, *service.BidService) {
 }
 
 func TestIntegration_AuctionJourney(t *testing.T) {
-	server, _ := setupServer()
+	server, _ := setupServer(t)
 	defer server.Close()
 
 	itemID := "vintage_car"
@@ -143,7 +171,7 @@ func TestIntegration_AuctionJourney(t *testing.T) {
 func TestIntegration_Endpoints(t *testing.T) {
 	t.Run("POST_Bid_Success", func(t *testing.T) {
 		t.Parallel()
-		server, _ := setupServer()
+		server, _ := setupServer(t)
 		defer server.Close()
 
 		reqBody := map[string]interface{}{
@@ -164,7 +192,7 @@ func TestIntegration_Endpoints(t *testing.T) {
 
 	t.Run("POST_Bid_TooLow", func(t *testing.T) {
 		t.Parallel()
-		server, bidService := setupServer()
+		server, bidService := setupServer(t)
 		defer server.Close()
 
 		// Pre-seed a bid directly into service
@@ -188,7 +216,7 @@ func TestIntegration_Endpoints(t *testing.T) {
 
 	t.Run("GET_WinningBid_Empty", func(t *testing.T) {
 		t.Parallel()
-		server, _ := setupServer()
+		server, _ := setupServer(t)
 		defer server.Close()
 
 		resp, err := http.Get(server.URL + "/items/empty_item/winning-bid")
@@ -203,7 +231,7 @@ func TestIntegration_Endpoints(t *testing.T) {
 
 	t.Run("GET_AllBids_Empty", func(t *testing.T) {
 		t.Parallel()
-		server, _ := setupServer()
+		server, _ := setupServer(t)
 		defer server.Close()
 
 		resp, err := http.Get(server.URL + "/items/empty_item/bids")
@@ -224,7 +252,7 @@ func TestIntegration_Endpoints(t *testing.T) {
 
 	t.Run("GET_UserItems_Empty", func(t *testing.T) {
 		t.Parallel()
-		server, _ := setupServer()
+		server, _ := setupServer(t)
 		defer server.Close()
 
 		resp, err := http.Get(server.URL + "/users/empty_user/items")

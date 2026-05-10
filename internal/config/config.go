@@ -13,8 +13,15 @@ type ServerConfig struct {
 	IdleTimeout  int `json:"idle_timeout_seconds"`
 }
 
+type RedisConfig struct {
+	Addr     string `json:"addr"`
+	Password string `json:"password"`
+	DB       int    `json:"db"`
+}
+
 type Config struct {
 	Server ServerConfig `json:"server"`
+	Redis  RedisConfig  `json:"redis"`
 }
 
 // Load reads the configuration from a JSON file based on the environment name.

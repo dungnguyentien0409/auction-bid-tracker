@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/api/middleware"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/config"
+	"github.com/dungnguyentien0409/auction-bid-tracker/internal/domain"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/repository"
 	"github.com/dungnguyentien0409/auction-bid-tracker/internal/service"
 )
@@ -39,7 +41,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	repo := repository.NewMemoryRepository()
+	// Initialize Repository (Explicitly choose between memory and redis)
+	var repo domain.Repository
+	repoType := os.Getenv("REPO_TYPE")
+	if repoType == "" {
+		repoType = "memory"
+	}
+
+	switch repoType {
+	case "redis":
+		log.Printf("==> BOOTSTRAP: Using REDIS repository at %s", cfg.Redis.Addr)
+		repo = repository.NewRedisRepository(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	case "memory":
+		log.Println("==> BOOTSTRAP: Using IN-MEMORY repository")
+		repo = repository.NewMemoryRepository()
+	default:
+		log.Fatalf("==> FATAL: Unknown REPO_TYPE '%s'. Supported types: 'memory', 'redis'", repoType)
+	}
+
 	bidService := service.NewBidService(repo)
 	apiHandler := api.NewHandler(bidService)
 

@@ -44,20 +44,28 @@ lint: ## Run golangci-lint
 	@echo "==> Linting code..."
 	@golangci-lint run ./...
 
-unit: ## Run unit tests
-	@echo "==> Running unit tests..."
-	@go test -v ./...
+unit: ## Run unit tests for all backends
+	@echo "==> Running unit tests (All Backends)..."
+	@$(MAKE) do-unit REPO_TYPE=memory APP_ENV=development
+	@$(MAKE) do-unit REPO_TYPE=redis APP_ENV=development
 
-integration: ## Run integration tests (Default: APP_ENV=development)
-	@if [ -z "$(REPO_TYPE)" ]; then \
-		echo "\033[1;31m[!] Missing REPO_TYPE\033[0m (memory | redis)"; \
-		echo "    Usage: \033[1;36mmake integration REPO_TYPE=memory\033[0m"; \
-		exit 1; \
-	fi
-	@echo "==> Running integration tests..."
-	@echo "    ENV:     $(if $(APP_ENV),$(APP_ENV),development)"
+do-unit: validate-env
+	@echo "----------------------------------------------------------"
 	@echo "    BACKEND: $(REPO_TYPE)"
-	@APP_ENV=$(if $(APP_ENV),$(APP_ENV),development) REPO_TYPE=$(REPO_TYPE) go test -v ./tests/... ./internal/... -tags=integration
+	@echo "----------------------------------------------------------"
+	@REPO_TYPE=$(REPO_TYPE) APP_ENV=$(APP_ENV) go test -v ./...
+
+integration: ## Run integration tests for all backends
+	@echo "==> Running integration tests (All Backends)..."
+	@$(MAKE) do-integration REPO_TYPE=memory APP_ENV=development
+	@$(MAKE) do-integration REPO_TYPE=redis APP_ENV=development
+
+do-integration: validate-env
+	@echo "----------------------------------------------------------"
+	@echo "    ENV:     $(APP_ENV)"
+	@echo "    BACKEND: $(REPO_TYPE)"
+	@echo "----------------------------------------------------------"
+	@APP_ENV=$(APP_ENV) REPO_TYPE=$(REPO_TYPE) go test -v ./tests/... ./internal/... -tags=integration
 
 coverage:
 	@echo "==> Running tests with coverage..."

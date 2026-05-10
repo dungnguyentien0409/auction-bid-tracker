@@ -1,41 +1,32 @@
 # ⚡️ Auction Bid Tracker
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![CI Status](https://github.com/dungnguyentien0409/auction-bid-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/dungnguyentien0409/auction-bid-tracker/actions)
 [![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen?style=for-the-badge)](https://github.com/dungnguyentien0409/auction-bid-tracker)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-A high-performance bidding engine written in Go, engineered for **ultra-low latency** and **extreme concurrency**. This system demonstrates advanced synchronization techniques capable of handling **100k+ RPS** on a single node.
+A high-performance bidding engine written in Go, engineered for **ultra-low latency** and **distributed consistency**. This system demonstrates a hybrid architecture capable of running as a standalone high-speed node or a horizontally scalable distributed cluster.
 
 ---
 
-## 🚀 Performance Matrix
+## 🚀 Performance Comparison (Memory vs Redis)
 
-*Measured on Apple M1 Pro (10-core). The system demonstrates near-linear scalability and consistent latency across various load patterns.*
+*Measured on Apple M1 Pro. Throughput represents the absolute maximum capacity of the business logic path.*
 
-| Scenario | Items | Distribution | Throughput | Avg Latency |
-| :--- | :--- | :--- | :--- | :--- |
-| **Hot Auction** | 1 | Single | **70,000+ RPS** | ~2.3 ms |
-| **Trending** | 10 | Uniform | **71,000+ RPS** | ~2.3 ms |
-| **Distributed** | 1,000 | Uniform | **80,000+ RPS** | ~1.9 ms |
-| **Skewed (Zipf)** | 1,000 | Zipfian (80/20) | **78,000+ RPS** | ~2.0 ms |
+| Scenario | Memory (RPS) | Redis (RPS) | Avg Latency (Mem/Redis) |
+| :--- | :--- | :--- | :--- |
+| **Hot Auction (1 Item)** | **72,000+** | **28,000+** | 2.2ms / 6.8ms |
+| **Trending (10 Items)** | **69,000+** | **27,000+** | 2.4ms / 6.7ms |
+| **Distributed (1000 Items)** | **72,000+** | **27,000+** | 2.2ms / 6.8ms |
+| **Skewed (Zipfian)** | **68,000+** | **27,000+** | 2.4ms / 6.8ms |
 
-> [!NOTE]
-> **Latency vs. Timeout**: While server-level timeouts (`ReadTimeout`/`WriteTimeout`) are configured to handle network jitter under extreme stress, the actual **Business Latency** remains ultra-low at **~2.2ms**. This ensures bids are processed in near real-time, meeting the critical requirements of a competitive auction system.
-
-> [!IMPORTANT]
-> **Technical Insight**: The stability of RPS across different distributions (from 1 to 1,000 items) proves that our **Fine-Grained Locking** effectively mitigates "Hot Partition" issues. 
-> 
-> ### Load Patterns Explained:
-> - **Uniform (Distributed)**: Traffic is spread equally across all items. This tests the **Peak Throughput** by minimizing lock contention.
-> - **Zipfian (Skewed)**: Follows the **80/20 rule** (a few items get most of the traffic). This is the most **Realistic Simulation**, testing how the system handles bias and high contention on popular items.
->
-> ### 🧪 Testing Methodology: Stress vs. SLA
-> - **Stress Testing (`APP_ENV=stress`)**: We use relaxed infrastructure timeouts (15s) to filter out OS-level network congestion noise. This allows us to measure the **absolute maximum throughput** of the application logic.
-> - **SLA Verification (`APP_ENV=development`)**: In standard operation, we enforce strict timeouts (5s) to guarantee a responsive user experience. If load exceeds this capacity, the strategy is to **Scale Out** or implement **Load Shedding**.
+> [!TIP]
+> **Performance Insight**: The Memory backend provides the theoretical peak performance of the Go engine. The Redis backend, while slower due to network overhead, ensures **Atomic Distributed Consistency** across multiple nodes, making it the choice for production scale-out.
 
 ---
 
 ## 🏗 System Architecture
+
+The project follows **Clean Architecture** principles, decoupling business domain from infrastructure details.
 
 ```text
        [ External ]         |          [ Internal / Core Logic ]
@@ -46,33 +37,29 @@ A high-performance bidding engine written in Go, engineered for **ultra-low late
                             |     |                   |
                             | [ Recovery ]     [ Bid Service ]
                             |                         |
-                            |                         v
-                            |               [ Repository Interface ]
-                            |                         |
-                            |                [ Memory Repository ]
-                            |               /         |         \
-                            |      [ Lock:Item1 ] [ Lock:Item2 ] [ Lock:Item3 ]
-                            |            |              |              |
-                            |      [ Bids Data ]  [ Bids Data ]  [ Bids Data ]
+                            |           /-------------+-------------\
+                            |          v                             v
+                            | [ Memory Repository ]       [ Redis Repository ]
+                            | (Fine-grained Locks)        (Atomic Lua Scripts)
 ```
 
 ---
 
 ## 💡 Technical Design Decisions
 
-### 1. Concurrency & Performance
-Instead of a global lock which bottlenecks the entire system, I implemented **Fine-Grained Locking**:
-- **Sharded State**: Using `sync.Map` for O(1) item lookups.
-- **Atomic Item Updates**: Each item has its own `RWMutex`. This allows parallel bidding on different items with zero interference.
+### 1. Hybrid Storage Strategy
+- **Memory**: Uses `sync.Map` and sharded `RWMutex` for zero-IO latency.
+- **Redis**: Uses a **Single-Trip Lua Script** to ensure that `Compare-and-Set` logic (check if new bid > current bid) happens atomically on the database side, preventing race conditions without expensive distributed locks.
 
-### 2. Interface-Driven Architecture
-- **Dependency Injection**: The core logic depends on abstractions, not implementations. 
-- **Scalability**: Swapping the In-Memory store for a persistent SQL/NoSQL database requires zero changes to the service layer.
+### 2. Zero-Friction Testing Matrix
+Our testing suite is automated to run against **ALL** backends with zero configuration:
+- **Database Isolation**: Each parallel test worker gets its own isolated Redis DB ID (0-15) to prevent cross-test data pollution.
+- **Auto-Infrastructure**: The `Makefile` automatically detects, starts, and waits for Redis containers during tests if they aren't already running.
 
-### 3. Fault Tolerance & Production Readiness
-- **Panic Recovery**: Middleware ensures a single failing request cannot bring down the entire node.
-- **Graceful Shutdown**: Implemented signal handling to ensure all active requests are finished before the process exits.
-- **Structured Logging**: Leveraging `log/slog` for high-performance, machine-readable logs.
+### 3. Production Readiness
+- **Graceful Shutdown**: All active requests are completed before exit.
+- **Panic Protection**: Middleware prevents a single bad request from crashing the server.
+- **Observability**: Structured logging with `slog` for high-performance tracing.
 
 ---
 
@@ -80,58 +67,34 @@ Instead of a global lock which bottlenecks the entire system, I implemented **Fi
 
 ### Prerequisites
 - Go 1.22+
-- Docker (Optional)
+- Docker & Docker Compose
 
-### Quick Start
-The system requires two mandatory environment variables: `APP_ENV` and `REPO_TYPE`.
-
+### Quick Run
 ```bash
-# Run locally with In-Memory (Standard development)
-make run APP_ENV=development REPO_TYPE=memory
+# Run locally with Memory (Standalone)
+make run REPO_TYPE=memory APP_ENV=development
 
-# Run locally with Redis (Requires Redis on localhost:6379)
-make run APP_ENV=development REPO_TYPE=redis
-
-# Run via Docker (Always starts with REPO_TYPE=memory unless configured)
-make docker-run REPO_TYPE=memory
+# Run as Distributed Cluster (App + Redis)
+make docker-up
 ```
 
-### Verification Suite
+### Full Verification Suite
+The system is protected by a 100% coverage suite and automated audits.
+
 | Command | Description |
 | :--- | :--- |
-| `make stress-matrix REPO_TYPE=memory` | **Run All Scenarios** and generate a performance report |
-| `make docker-up` | **Start Distributed System** (App + Redis) via Docker Compose |
-| `make docker-down` | Stop and clean up all Docker resources |
-| `make test APP_ENV=development REPO_TYPE=memory` | Run all unit & integration tests (100% Coverage) |
-| `make coverage APP_ENV=development REPO_TYPE=memory` | Generate HTML report for code coverage verification |
-| `make benchmark` | Micro-benchmarks for core engine synchronization speed |
-| `make load-test APP_ENV=stress REPO_TYPE=memory` | General API stress test |
-| `make test-zipf APP_ENV=stress REPO_TYPE=memory` | **Skewed (Zipfian)** - Realistic 80/20 traffic distribution |
-
----
-
-## 🌐 Horizontal Scaling (Redis)
-
-To scale the system across multiple nodes, you can switch from the `In-Memory` repository to the `Redis` repository. This ensures all nodes share the same state and use **Distributed Atomic Updates** via Lua scripts.
-
-### Run with Docker Compose (Recommended)
-This will start the Auction Server and a Redis instance automatically:
-```bash
-docker-compose up --build
-```
-
-### Manual Run with Redis
-1. Ensure Redis is running on `localhost:6379`.
-2. Start the server with `REPO_TYPE=redis`:
-```bash
-REPO_TYPE=redis make run
-```
+| `make help` | **Gateway Command** - Display all available targets and configurations |
+| **`make stress-compare`** | **Deep Performance Audit** (Memory vs Redis comparison table) |
+| `make unit` | Run all unit tests for **BOTH** backends automatically |
+| `make integration` | Run E2E integration tests for **BOTH** backends automatically |
+| `make lint` | Run enterprise-grade static analysis |
+| `make coverage` | Generate 100% coverage report |
 
 ---
 
 ## 📂 Project Layout
-- `cmd/`: Application entry points & Load testing tools.
-- `internal/api/`: HTTP layer, routing, and middlewares.
-- `internal/domain/`: Core business entities and repository contracts.
-- `internal/repository/`: Thread-safe data structures & synchronization.
-- `internal/service/`: Business logic orchestration.
+- `internal/domain/`: Core entities and repository contracts.
+- `internal/repository/`: Parallel implementations (Memory & Redis).
+- `internal/service/`: High-level business orchestration.
+- `tests/`: End-to-end integration scenarios.
+- `.github/workflows/`: Automated CI pipeline configuration.

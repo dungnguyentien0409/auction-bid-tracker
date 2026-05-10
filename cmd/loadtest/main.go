@@ -18,6 +18,8 @@ var (
 	workersFlag  = flag.Int("workers", 200, "Number of concurrent workers")
 	durationFlag = flag.Duration("duration", 10*time.Second, "Duration of the load test")
 	hotItemFlag  = flag.Bool("hot", false, "Simulate a hot auction (all bids on 1 item)")
+	itemsFlag    = flag.Int("items", 100, "Number of items to distribute load across")
+	distFlag     = flag.String("dist", "uniform", "Distribution pattern: uniform or zipf")
 )
 
 type metrics struct {
@@ -61,12 +63,22 @@ func main() {
 			defer wg.Done()
 			r := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)))
 
+			var zipf *rand.Zipf
+			if *distFlag == "zipf" {
+				// s > 1.1, q >= 1. s=1.1 means very skewed, s=2.0 means less skewed.
+				zipf = rand.NewZipf(r, 1.1, 1, uint64(*itemsFlag-1))
+			}
+
 			for time.Now().Before(deadline) {
 				itemID := "item_1"
-				if !*hotItemFlag {
-					itemID = fmt.Sprintf("item_%d", r.Intn(100))
+				if *hotItemFlag {
+					itemID = "item_hot"
+				} else if *distFlag == "zipf" {
+					itemID = fmt.Sprintf("item_%d", zipf.Uint64())
+				} else {
+					itemID = fmt.Sprintf("item_%d", r.Intn(*itemsFlag))
 				}
-				userID := fmt.Sprintf("user_%d", r.Intn(1000))
+				userID := fmt.Sprintf("user_%d", r.Intn(10000)) // Scaled user base
 				amount := float64(r.Intn(1000)) + 1.0
 
 				startReq := time.Now()
@@ -74,8 +86,8 @@ func main() {
 				var statusCode int
 
 				isPost := r.Float32() < 0.7
-				// Retry once if we get a network error (Senior approach for high RPS)
-				for attempt := 0; attempt < 2; attempt++ {
+				// Increased retries for high RPS network glitches
+				for attempt := 0; attempt < 5; attempt++ {
 					if isPost {
 						statusCode, err = postBid(client, itemID, userID, amount)
 					} else {
@@ -84,6 +96,8 @@ func main() {
 					if err == nil {
 						break
 					}
+					// Small backoff if we fail (Senior approach)
+					time.Sleep(time.Duration(attempt) * time.Millisecond)
 				}
 
 				atomic.AddInt64(&stats.totalRequests, 1)

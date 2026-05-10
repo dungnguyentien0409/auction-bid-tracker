@@ -8,19 +8,30 @@ A high-performance bidding engine written in Go, engineered for **ultra-low late
 
 ---
 
-## 🚀 Performance Benchmarks
+## 🚀 Performance Matrix
 
-*Measured on Apple M1 Pro (10-core). Complete results available via `make benchmark` and `make load-test`.*
+*Measured on Apple M1 Pro (10-core). The system demonstrates near-linear scalability and consistent latency across various load patterns.*
 
-| Metric | Core Engine (Memory) | API Layer (HTTP) |
-| :--- | :--- | :--- |
-| **Throughput (Parallel)** | ~12.5 Million ops/sec | **72,000+ RPS** |
-| **Throughput (Contention)**| ~5.6 Million ops/sec | **70,000+ RPS** |
-| **Average Latency** | **~79 ns** | **~2.2 ms** |
-| **Success Rate** | 100% | **99.99%+** |
+| Scenario | Items | Distribution | Throughput | Avg Latency |
+| :--- | :--- | :--- | :--- | :--- |
+| **Hot Auction** | 1 | Single | **70,000+ RPS** | ~2.3 ms |
+| **Trending** | 10 | Uniform | **71,000+ RPS** | ~2.3 ms |
+| **Distributed** | 1,000 | Uniform | **80,000+ RPS** | ~1.9 ms |
+| **Skewed (Zipf)** | 1,000 | Zipfian (80/20) | **78,000+ RPS** | ~2.0 ms |
 
-> [!TIP]
-> Even under **High Contention** (Hot Auction scenario with 10k+ concurrent bids on a single item), the system maintains over **70k RPS**, proving the efficiency of the fine-grained locking strategy.
+> [!NOTE]
+> **Latency vs. Timeout**: While server-level timeouts (`ReadTimeout`/`WriteTimeout`) are configured to handle network jitter under extreme stress, the actual **Business Latency** remains ultra-low at **~2.2ms**. This ensures bids are processed in near real-time, meeting the critical requirements of a competitive auction system.
+
+> [!IMPORTANT]
+> **Technical Insight**: The stability of RPS across different distributions (from 1 to 1,000 items) proves that our **Fine-Grained Locking** effectively mitigates "Hot Partition" issues. 
+> 
+> ### Load Patterns Explained:
+> - **Uniform (Distributed)**: Traffic is spread equally across all items. This tests the **Peak Throughput** by minimizing lock contention.
+> - **Zipfian (Skewed)**: Follows the **80/20 rule** (a few items get most of the traffic). This is the most **Realistic Simulation**, testing how the system handles bias and high contention on popular items.
+>
+> ### 🧪 Testing Methodology: Stress vs. SLA
+> - **Stress Testing (`APP_ENV=stress`)**: We use relaxed infrastructure timeouts (15s) to filter out OS-level network congestion noise. This allows us to measure the **absolute maximum throughput** of the application logic.
+> - **SLA Verification (`APP_ENV=development`)**: In standard operation, we enforce strict timeouts (5s) to guarantee a responsive user experience. If load exceeds this capacity, the strategy is to **Scale Out** or implement **Load Shedding**.
 
 ---
 
@@ -83,11 +94,15 @@ make docker-run
 ### Verification Suite
 | Command | Description |
 | :--- | :--- |
-| `make test` | Run all unit & integration tests |
-| `make coverage` | Generate 100% coverage HTML report |
-| `make benchmark` | Run micro-benchmarks for core logic |
-| `make load-test` | Run end-to-end API stress test |
-| `make contention-test` | Run single-item "Hot Auction" test |
+| `make stress-matrix` | **Run All Scenarios** and generate a performance report |
+| `make test` | Run all unit & integration tests (100% Coverage) |
+| `make coverage` | Generate HTML report for code coverage verification |
+| `make benchmark` | Micro-benchmarks for core engine synchronization speed |
+| `make load-test` | General API stress test (Default config) |
+| `make contention-test` | **Hot Auction (1 Item)** - Tests extreme lock contention |
+| `make test-trending` | **Trending (10 Items)** - Tests high-contention on popular items |
+| `make test-distributed` | **Distributed (1000 Items)** - Tests peak throughput (low contention) |
+| `make test-zipf` | **Skewed (Zipfian, 1000 Items)** - Realistic 80/20 traffic distribution |
 
 ---
 

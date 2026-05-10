@@ -47,19 +47,89 @@ The project follows **Clean Architecture** principles, decoupling business domai
 
 ## 💡 Technical Design Decisions
 
-### 1. Hybrid Storage Strategy
-- **Memory**: Uses `sync.Map` and sharded `RWMutex` for zero-IO latency.
-- **Redis**: Uses a **Single-Trip Lua Script** to ensure that `Compare-and-Set` logic (check if new bid > current bid) happens atomically on the database side, preventing race conditions without expensive distributed locks.
+### 1. Clean Architecture & Dependency Injection
 
-### 2. Zero-Friction Testing Matrix
-Our testing suite is automated to run against **ALL** backends with zero configuration:
-- **Database Isolation**: Each parallel test worker gets its own isolated Redis DB ID (0-15) to prevent cross-test data pollution.
-- **Auto-Infrastructure**: The `Makefile` automatically detects, starts, and waits for Redis containers during tests if they aren't already running.
+The system follows a layered architecture:
 
-### 3. Production Readiness
-- **Graceful Shutdown**: All active requests are completed before exit.
-- **Panic Protection**: Middleware prevents a single bad request from crashing the server.
-- **Observability**: Structured logging with `slog` for high-performance tracing.
+```text
+API Handler → Service Layer → Repository Interface → Concrete Implementation
+```
+
+Core business logic depends only on domain interfaces, not infrastructure details.
+
+This allows:
+- interchangeable repository implementations
+- isolated unit testing
+- backend-specific optimization without affecting business logic
+- simplified dependency injection during runtime and tests
+
+The active repository implementation is selected at startup:
+- `MemoryRepository` for standalone low-latency execution
+- `RedisRepository` for distributed coordination scenarios
+
+---
+
+### 2. Concurrency Strategy
+
+The auction engine is designed for high concurrent write throughput.
+
+#### Memory Backend
+The in-memory implementation uses:
+- `sync.Map` for concurrent item access
+- sharded `RWMutex` locking to reduce contention
+- fine-grained synchronization per auction item
+
+This minimizes global lock contention during hot bidding scenarios.
+
+#### Redis Backend
+The distributed implementation uses:
+- atomic Lua scripts executed server-side
+- single-roundtrip compare-and-set updates
+- Redis-native synchronization guarantees
+
+This prevents race conditions without requiring distributed mutexes.
+
+---
+
+### 3. Hybrid Runtime Modes
+
+The project intentionally separates runtime modes:
+
+| Mode | Backend | Purpose |
+| :--- | :--- | :--- |
+| `make run` | Memory | Fast local development |
+| `make docker-up` | Redis | Distributed environment simulation |
+
+This separation keeps local iteration lightweight while allowing realistic distributed testing with Redis coordination.
+
+---
+
+### 4. Automated Verification & Performance Testing
+
+The project includes:
+- unit tests
+- integration tests
+- benchmarks
+- synthetic load-testing scenarios
+
+Stress tests simulate multiple traffic patterns:
+- hot-item contention
+- distributed low-contention traffic
+- skewed Zipfian workloads
+
+The Redis integration flow automatically provisions temporary Redis containers during integration and stress tests when needed.
+
+---
+
+### 5. Production-Oriented Reliability
+
+The service includes:
+- graceful shutdown handling
+- panic recovery middleware
+- structured logging with `slog`
+- full linting and coverage validation pipeline
+
+The goal was to build a system that remains observable and resilient under concurrent load.
 
 ---
 

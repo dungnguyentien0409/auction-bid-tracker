@@ -19,8 +19,11 @@ A high-performance bidding engine written in Go, engineered for **ultra-low late
 | **Distributed (1000 Items)** | **72,000+** | **27,000+** | 2.2ms / 6.8ms |
 | **Skewed (Zipfian)** | **68,000+** | **27,000+** | 2.4ms / 6.8ms |
 
-> [!TIP]
-> **Performance Insight**: The Memory backend provides the theoretical peak performance of the Go engine. The Redis backend, while slower due to network overhead, ensures **Atomic Distributed Consistency** across multiple nodes, making it the choice for production scale-out.
+> [!NOTE]
+> **Performance Insight**
+>
+> - **Memory Backend**: Provides the theoretical peak throughput of the Go engine with zero network overhead.
+> - **Redis Backend**: Trades raw throughput for atomic distributed consistency across multiple nodes, making it suitable for scale-out distributed deployments.
 
 ---
 

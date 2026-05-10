@@ -70,7 +70,7 @@ func main() {
 			}
 
 			for time.Now().Before(deadline) {
-				itemID := "item_1"
+				var itemID string
 				if *hotItemFlag {
 					itemID = "item_hot"
 				} else if *distFlag == "zipf" {

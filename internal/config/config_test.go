@@ -11,7 +11,7 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create config directory: %v", err)
 	}
-	defer os.RemoveAll("config")
+	defer func() { _ = os.RemoveAll("config") }()
 
 	t.Run("success", func(t *testing.T) {
 		content := `{
